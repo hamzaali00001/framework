@@ -4,6 +4,7 @@ namespace Illuminate\Filesystem;
 
 use Closure;
 use Aws\S3\S3Client;
+use Illuminate\Support\Manager;
 use OpenCloud\Rackspace;
 use Illuminate\Support\Arr;
 use InvalidArgumentException;
@@ -22,39 +23,14 @@ use Illuminate\Contracts\Filesystem\Factory as FactoryContract;
 /**
  * @mixin \Illuminate\Contracts\Filesystem\Filesystem
  */
-class FilesystemManager implements FactoryContract
+class FilesystemManager extends Manager implements FactoryContract
 {
-    /**
-     * The application instance.
-     *
-     * @var \Illuminate\Contracts\Foundation\Application
-     */
-    protected $app;
-
     /**
      * The array of resolved filesystem drivers.
      *
      * @var array
      */
     protected $disks = [];
-
-    /**
-     * The registered custom driver creators.
-     *
-     * @var array
-     */
-    protected $customCreators = [];
-
-    /**
-     * Create a new filesystem manager instance.
-     *
-     * @param  \Illuminate\Contracts\Foundation\Application  $app
-     * @return void
-     */
-    public function __construct($app)
-    {
-        $this->app = $app;
-    }
 
     /**
      * Get a filesystem instance.
@@ -159,9 +135,9 @@ class FilesystemManager implements FactoryContract
             ? LocalAdapter::SKIP_LINKS
             : LocalAdapter::DISALLOW_LINKS;
 
-        return $this->adapt($this->createFlysystem(new LocalAdapter(
+        return $this->adaptCreateFlysystem(new LocalAdapter(
             $config['root'], LOCK_EX, $links, $permissions
-        ), $config));
+        ), $config);
     }
 
     /**
@@ -172,9 +148,9 @@ class FilesystemManager implements FactoryContract
      */
     public function createFtpDriver(array $config)
     {
-        return $this->adapt($this->createFlysystem(
+        return $this->adaptCreateFlysystem(
             new FtpAdapter($config), $config
-        ));
+        );
     }
 
     /**
@@ -185,9 +161,9 @@ class FilesystemManager implements FactoryContract
      */
     public function createSftpDriver(array $config)
     {
-        return $this->adapt($this->createFlysystem(
+        return $this->adaptCreateFlysystem(
             new SftpAdapter($config), $config
-        ));
+        );
     }
 
     /**
@@ -204,9 +180,9 @@ class FilesystemManager implements FactoryContract
 
         $options = $config['options'] ?? [];
 
-        return $this->adapt($this->createFlysystem(
+        return $this->adaptCreateFlysystem(
             new S3Adapter(new S3Client($s3Config), $s3Config['bucket'], $root, $options), $config
-        ));
+        );
     }
 
     /**
@@ -240,9 +216,21 @@ class FilesystemManager implements FactoryContract
 
         $root = $config['root'] ?? null;
 
-        return $this->adapt($this->createFlysystem(
+        return $this->adaptCreateFlysystem(
             new RackspaceAdapter($this->getRackspaceContainer($client, $config), $root), $config
-        ));
+        );
+    }
+
+    /**
+     * Create and adapt a Flysystem instance with the given adapter.
+     *
+     * @param  \League\Flysystem\AdapterInterface  $adapter
+     * @param  array  $config
+     * @return \League\Flysystem\FilesystemInterface
+     */
+    protected function adaptCreateFlysystem(AdapterInterface $adapter, array $config)
+    {
+        return $this->adapt($this->createFlysystem($adapter, $config));
     }
 
     /**
@@ -333,7 +321,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig($name)
     {
-        return $this->app['config']["filesystems.disks.{$name}"];
+        return $this->getConfiguration("filesystems.disks.{$name}");
     }
 
     /**
@@ -343,7 +331,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver()
     {
-        return $this->app['config']['filesystems.default'];
+        return $this->getConfiguration('filesystems.default');
     }
 
     /**
@@ -353,7 +341,18 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultCloudDriver()
     {
-        return $this->app['config']['filesystems.cloud'];
+        return $this->getConfiguration('filesystems.cloud');
+    }
+
+    /**
+     * Get a configuration.
+     *
+     * @param $value
+     * @return mixed
+     */
+    protected function getConfiguration($value)
+    {
+        return $this->app['config'][$value];
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace Illuminate\Queue;
 
 use Closure;
+use Illuminate\Support\Manager;
 use InvalidArgumentException;
 use Illuminate\Contracts\Queue\Factory as FactoryContract;
 use Illuminate\Contracts\Queue\Monitor as MonitorContract;
@@ -10,15 +11,8 @@ use Illuminate\Contracts\Queue\Monitor as MonitorContract;
 /**
  * @mixin \Illuminate\Contracts\Queue\Queue
  */
-class QueueManager implements FactoryContract, MonitorContract
+class QueueManager extends Manager implements FactoryContract, MonitorContract
 {
-    /**
-     * The application instance.
-     *
-     * @var \Illuminate\Foundation\Application
-     */
-    protected $app;
-
     /**
      * The array of resolved queue connections.
      *
@@ -34,17 +28,6 @@ class QueueManager implements FactoryContract, MonitorContract
     protected $connectors = [];
 
     /**
-     * Create a new queue manager instance.
-     *
-     * @param  \Illuminate\Foundation\Application  $app
-     * @return void
-     */
-    public function __construct($app)
-    {
-        $this->app = $app;
-    }
-
-    /**
      * Register an event listener for the before job event.
      *
      * @param  mixed  $callback
@@ -52,7 +35,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before($callback)
     {
-        $this->app['events']->listen(Events\JobProcessing::class, $callback);
+        $this->registerEvent(Events\JobProcessing::class, $callback);
     }
 
     /**
@@ -63,7 +46,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after($callback)
     {
-        $this->app['events']->listen(Events\JobProcessed::class, $callback);
+        $this->registerEvent(Events\JobProcessed::class, $callback);
     }
 
     /**
@@ -74,7 +57,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred($callback)
     {
-        $this->app['events']->listen(Events\JobExceptionOccurred::class, $callback);
+        $this->registerEvent(Events\JobExceptionOccurred::class, $callback);
     }
 
     /**
@@ -85,7 +68,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping($callback)
     {
-        $this->app['events']->listen(Events\Looping::class, $callback);
+        $this->registerEvent(Events\Looping::class, $callback);
     }
 
     /**
@@ -96,7 +79,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing($callback)
     {
-        $this->app['events']->listen(Events\JobFailed::class, $callback);
+        $this->registerEvent(Events\JobFailed::class, $callback);
     }
 
     /**
@@ -107,7 +90,19 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping($callback)
     {
-        $this->app['events']->listen(Events\WorkerStopping::class, $callback);
+        $this->registerEvent(Events\WorkerStopping::class, $callback);
+    }
+
+    /**
+     * Register an event listener.
+     *
+     * @param $class
+     * @param  mixed  $callback
+     * @return void
+     */
+    protected function registerEvent($class, $callback)
+    {
+        $this->app['events']->listen($class, $callback);
     }
 
     /**
@@ -134,13 +129,14 @@ class QueueManager implements FactoryContract, MonitorContract
         // If the connection has not been resolved yet we will resolve it now as all
         // of the connections are resolved when they are actually needed so we do
         // not make any unnecessary connection to the various queue end-points.
-        if (! isset($this->connections[$name])) {
-            $this->connections[$name] = $this->resolve($name);
+        $connection = &$this->connections[$name];
+        if (! isset($connection)) {
+            $connection = $this->resolve($name);
 
-            $this->connections[$name]->setContainer($this->app);
+            $connection->setContainer($this->app);
         }
 
-        return $this->connections[$name];
+        return $connection;
     }
 
     /**
@@ -184,7 +180,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function extend($driver, Closure $resolver)
     {
-        return $this->addConnector($driver, $resolver);
+        $this->addConnector($driver, $resolver);
     }
 
     /**

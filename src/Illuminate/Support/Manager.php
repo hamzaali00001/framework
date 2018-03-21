@@ -109,20 +109,6 @@ abstract class Manager
     }
 
     /**
-     * Register a custom driver creator Closure.
-     *
-     * @param  string    $driver
-     * @param  \Closure  $callback
-     * @return $this
-     */
-    public function extend($driver, Closure $callback)
-    {
-        $this->customCreators[$driver] = $callback;
-
-        return $this;
-    }
-
-    /**
      * Get all of the created "drivers".
      *
      * @return array
